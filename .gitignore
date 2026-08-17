@@ -1,0 +1,36 @@
+# ============================================================
+#  สำคัญที่สุด: กันไฟล์ share หลุดขึ้น public repo
+#  ถ้า share ครบ k ชิ้นอยู่บน GitHub = เหลือรหัสผ่านชั้นเดียว
+# ============================================================
+*.bin
+part*.bin
+manifest.json
+vault/
+shares/
+*.share
+
+# ไฟล์ทดสอบ
+test_output/
+*.dat
+*.restored
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+build/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

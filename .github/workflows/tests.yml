@@ -1,0 +1,45 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.11', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run test suite
+        run: python -m unittest test_sss_backup -v
+
+      - name: Smoke test CLI
+        shell: bash
+        run: |
+          mkdir -p smoke
+          python -c "import os; open('smoke/sample.dat','wb').write(os.urandom(50000))"
+          python -c "
+          import hashlib
+          print(hashlib.sha256(open('smoke/sample.dat','rb').read()).hexdigest())
+          " > before.txt
+          python sss_backup.py split smoke/sample.dat -k 3 -n 5 --password 'ci-test-pw'
+          rm smoke/part1.bin smoke/part4.bin smoke/sample.dat
+          python sss_backup.py restore smoke --password 'ci-test-pw'
+          python -c "
+          import hashlib
+          print(hashlib.sha256(open('smoke/sample.dat','rb').read()).hexdigest())
+          " > after.txt
+          diff before.txt after.txt && echo 'restored file matches original'
