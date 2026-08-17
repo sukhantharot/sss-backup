@@ -21,6 +21,47 @@ import hashlib
 import getpass
 import argparse
 
+
+# =====================================================================
+#  ส่วนที่ 0 : บังคับให้ output เป็น UTF-8
+# ---------------------------------------------------------------------
+#  บน Windows ถ้า stdout ถูก redirect เข้า pipe หรือไฟล์ (เช่นตอนรันใน CI
+#  หรือ `python sss_backup.py > log.txt`) Python จะไม่ใช้ console encoding
+#  แต่ถอยไปใช้ locale encoding ซึ่งมักเป็น cp1252 -> ไม่มีตัวอักษรไทย
+#  -> print() ข้อความไทยแล้ว UnicodeEncodeError ทันที
+#
+#  หมายเหตุ: sys.stderr ไม่พังเพราะ Python ตั้ง errors='backslashreplace'
+#  ให้อยู่แล้ว แต่จะได้ \u0e1e\u0e1a แทนตัวอักษรจริง จึงแก้ทั้งสองทาง
+# =====================================================================
+
+def _force_utf8_output():
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, 'reconfigure', None)   # Python 3.7+
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding='utf-8', errors='replace')
+        except (ValueError, OSError):
+            pass        # stream ถูก redirect แบบที่ตั้งค่าไม่ได้ ก็ปล่อยไป
+
+
+_force_utf8_output()
+
+
+def out(msg=''):
+    """print ที่ไม่มีวันพังเพราะ encoding
+
+    _force_utf8_output() แก้ปัญหาได้ตอนโปรแกรมเริ่มทำงาน แต่ถ้ามีใครเอา
+    โมดูลนี้ไปใช้แล้วสลับ sys.stdout ทีหลัง (IDE บางตัว ตัวรันเทสต์ หรือ
+    การ capture output) ก็ยังพังได้อยู่ ฟังก์ชันนี้จึงกันไว้อีกชั้น
+    """
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, 'encoding', None) or 'ascii'
+        sys.stdout.write(msg.encode(enc, 'replace').decode(enc, 'replace') + '\n')
+
+
 # =====================================================================
 #  ส่วนที่ 1 : เลขคณิตใน GF(256)
 # ---------------------------------------------------------------------
@@ -290,7 +331,7 @@ def do_restore(indir, password, outdir=None):
         raise SystemExit(f"ต้องการอย่างน้อย {k} ชิ้น แต่พบเพียง {len(uniq)} ชิ้น")
 
     chosen = dict(sorted(uniq.items())[:k])
-    print(f"[*] พบ share ใช้ได้ {len(uniq)} ชิ้น — เลือกใช้: "
+    out(f"[*] พบ share ใช้ได้ {len(uniq)} ชิ้น — เลือกใช้: "
           f"{[uniq[x]['file'] for x in chosen]}")
 
     cipher = sss_combine({x: s['payload'] for x, s in chosen.items()})
@@ -318,13 +359,13 @@ def do_restore(indir, password, outdir=None):
 # =====================================================================
 
 def menu():
-    print("=" * 62)
-    print("  SSS BACKUP VAULT  —  Shamir's Secret Sharing")
-    print("=" * 62)
-    print("  [1] แตกไฟล์ (Split)")
-    print("  [2] กู้คืนไฟล์ (Restore)")
-    print("  [3] ออก")
-    print("=" * 62)
+    out("=" * 62)
+    out("  SSS BACKUP VAULT  —  Shamir's Secret Sharing")
+    out("=" * 62)
+    out("  [1] แตกไฟล์ (Split)")
+    out("  [2] กู้คืนไฟล์ (Restore)")
+    out("  [3] ออก")
+    out("=" * 62)
     c = input("เลือก [1-3]: ").strip()
 
     if c == '1':
@@ -335,19 +376,19 @@ def menu():
         if pw != getpass.getpass("ยืนยันรหัสผ่าน: "):
             raise SystemExit("รหัสผ่านไม่ตรงกัน")
         files, meta = do_split(path, pw, k, n)
-        print(f"\n[+] แตก '{meta['name']}' ({meta['size']:,} ไบต์) "
+        out(f"\n[+] แตก '{meta['name']}' ({meta['size']:,} ไบต์) "
               f"เป็น {n} ชิ้น ใช้ {k} ชิ้นก็กู้ได้")
         for f in files:
-            print("    ->", f)
+            out("    -> " + f)
 
     elif c == '2':
         d = input("โฟลเดอร์ที่เก็บ share [.]: ").strip().strip('"') or '.'
         pw = getpass.getpass("รหัสผ่าน: ")
         dest, meta = do_restore(d, pw)
-        print(f"\n[+] กู้คืนสำเร็จ 100% -> {dest} ({meta['size']:,} ไบต์)")
+        out(f"\n[+] กู้คืนสำเร็จ 100% -> {dest} ({meta['size']:,} ไบต์)")
 
     else:
-        print("[*] ออกจากโปรแกรม")
+        out("[*] ออกจากโปรแกรม")
 
 
 def main():
@@ -375,13 +416,13 @@ def main():
 
     if a.cmd == 'split':
         files, meta = do_split(a.file, pw, a.k, a.n, a.outdir)
-        print(f"[+] แตก '{meta['name']}' ({meta['size']:,} ไบต์) เป็น {a.n} ชิ้น "
+        out(f"[+] แตก '{meta['name']}' ({meta['size']:,} ไบต์) เป็น {a.n} ชิ้น "
               f"(ใช้ {a.k} ชิ้นก็กู้ได้)")
         for f in files:
-            print("    ->", f)
+            out("    -> " + f)
     else:
         dest, meta = do_restore(a.dir, pw, a.outdir)
-        print(f"[+] กู้คืนสำเร็จ 100% -> {dest} ({meta['size']:,} ไบต์)")
+        out(f"[+] กู้คืนสำเร็จ 100% -> {dest} ({meta['size']:,} ไบต์)")
 
 
 if __name__ == '__main__':

@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# บังคับ UTF-8 ทุก step โดยเฉพาะ Windows runner ที่ stdout เป็น pipe
+# (ตัวสคริปต์เองก็ reconfigure ให้อยู่แล้ว นี่เป็นเกราะชั้นที่สอง)
+env:
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: '1'
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}

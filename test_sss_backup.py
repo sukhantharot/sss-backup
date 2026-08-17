@@ -271,5 +271,44 @@ class TestEndToEnd(unittest.TestCase):
                 ensure_ascii=False).encode()))
 
 
+# =====================================================================
+#  5) การแสดงผลบนเทอร์มินัลที่ไม่รองรับ UTF-8
+# ---------------------------------------------------------------------
+#  เคสจริงที่เคยทำ CI พังบน windows-latest:
+#  stdout ถูก redirect เข้า pipe -> Python ใช้ cp1252 -> print ไทยแล้วพัง
+# =====================================================================
+
+class TestNonUtf8Terminal(unittest.TestCase):
+
+    def test_streams_are_utf8(self):
+        """_force_utf8_output ต้องตั้ง encoding ได้จริง"""
+        if hasattr(sys.stdout, 'encoding') and hasattr(sys.stdout, 'reconfigure'):
+            self.assertEqual((sys.stdout.encoding or '').lower().replace('-', ''),
+                             'utf8')
+
+    def test_restore_prints_on_cp1252_stream(self):
+        """เขียนข้อความของ do_restore ลง stream แบบ cp1252 ต้องไม่ throw"""
+        import io
+        tmp = tempfile.mkdtemp()
+        try:
+            src = os.path.join(tmp, 'ทดสอบ.txt')
+            with open(src, 'wb') as f:
+                f.write(os.urandom(2048))
+            S.do_split(src, 'pw', k=3, n=5)
+            os.remove(src)
+
+            raw = io.BytesIO()
+            fake = io.TextIOWrapper(raw, encoding='cp1252', errors='strict')
+            real = sys.stdout
+            sys.stdout = fake
+            try:
+                S.do_restore(tmp, 'pw')   # เดิมพังตรงนี้ด้วย UnicodeEncodeError
+                fake.flush()
+            finally:
+                sys.stdout = real
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
